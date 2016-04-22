@@ -22,6 +22,8 @@
 
 #define BUFFER_SIZE 513
 #define TOKEN_DELIMITER " \t\n\v\f\r"
+#define TRUE 1
+#define FALSE 0
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
@@ -66,19 +68,30 @@ void *process_thread(void *arg){
             pthread_cond_wait(&cond,&mutex);
         }
 
-        char **argv = NULL;
-        argv = parse_argv();
-        if(strcmp(argv[0], "exit") == 0){
+        Arguments arguments;
+        arguments = parse_argv();
+        if(strcmp(arguments.argv[0], "exit") == 0){
             notend = 0;
         }
         else{
             pid_t pid = fork();
             if(pid == 0){
-            
-                if(execvp(argv[0], argv) == -1){
+                if(arguments.inredirect){
+                    int fd = open(arguments.infile, O_RDONLY);
+                    dup2(fd, STDIN_FILENO);
+                    close(fd);
+                }
+
+                if(arguments.outredirect){
+                    int fd = creat(arguments.outfile, 0644);
+                    dup2(fd, STDOUT_FILENO);
+                    close(fd);
+                }
+ 
+                if(execvp(arguments.argv[0], arguments.argv) == -1){
 
                 }
-                _exit(0);
+                _exit(0); // fail
             }
             else if(pid > 0){
                 int status = -1;
@@ -88,7 +101,7 @@ void *process_thread(void *arg){
             }
         }
 
-        free(argv);
+        free(arguments.argv);
         reading = 1;       
         pthread_cond_signal(&cond);
         pthread_mutex_unlock(&mutex);
@@ -97,7 +110,8 @@ void *process_thread(void *arg){
 	return (void *)0;
 }
 
-char **parse_argv(){
+Arguments parse_argv(){
+    Arguments arguments = { FALSE, FALSE, FALSE, NULL, NULL, NULL }; 
     char **tokens = malloc(BUFFER_SIZE * sizeof(char*));   
     if(!tokens){
 
@@ -114,7 +128,7 @@ char **parse_argv(){
     }
     
     tokens[index] = NULL;
-    return tokens;
+    return arguments;
 }
 
 void print_prompt(){
