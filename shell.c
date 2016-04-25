@@ -7,7 +7,8 @@
  *	Description:
  **/
 
-#define _POSIX_SOURCE
+//#define _POSIX_SOURCE
+#define _XOPEN_SOURCE 700
 
 #include <pthread.h>
 #include <stdio.h>
@@ -18,17 +19,27 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <signal.h>
 #include "shell.h"
-
-#define BUFFER_SIZE 513
-#define TOKEN_DELIMITER " \t\n\v\f\r"
-#define TRUE 1
-#define FALSE 0
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 char buffer[BUFFER_SIZE];
 int reading = 0, notend = 1;
+pid_t pid;
+
+void sig_handler(int signo){
+    if(signo == SIGINT){
+        kill(pid, SIGINT);
+        print_prompt();
+    }
+    else if (signo == SIGCHLD){
+        int status = -1;
+        pid_t pid2 = waitpid(-1, &status, 0);
+        printf("Process %d ended\n", pid2);
+        fflush(stdout);
+    }
+}
 
 void *read_thread(void *arg){
     int n = -1;
@@ -68,13 +79,20 @@ void *process_thread(void *arg){
             pthread_cond_wait(&cond,&mutex);
         }
 
+        if(strlen(buffer) == 0){
+            // should not happen, print error
+            pthread_cond_signal(&cond);
+            pthread_mutex_unlock(&mutex);
+            continue;
+        }
+
         Arguments arguments;
         arguments = parse_argv();
         if(strcmp(arguments.argv[0], "exit") == 0){
             notend = 0;
         }
         else{
-            pid_t pid = fork();
+            pid = fork();
             if(pid == 0){
                 if(arguments.inredirect){
                     int fd = open(arguments.infile, O_RDONLY);
@@ -87,17 +105,27 @@ void *process_thread(void *arg){
                     dup2(fd, STDOUT_FILENO);
                     close(fd);
                 }
- 
-                if(execvp(arguments.argv[0], arguments.argv) == -1){
+                
+                if(arguments.background){
 
+                }
+        
+                if(execvp(arguments.argv[0], arguments.argv) == -1){
+                    fprintf(stderr, "Prikaz nenalezen!\n");
                 }
                 _exit(0); // fail
             }
             else if(pid > 0){
-                int status = -1;
-                waitpid(-1, &status, 0);
+                if(arguments.background){
+                
+                }
+                else{
+                    int status;
+                    waitpid(-1, &status, 0); 
+                }
             }
             else{
+                fprintf(stderr, "Fork se nepovedl\n");
             }
         }
 
@@ -111,33 +139,53 @@ void *process_thread(void *arg){
 }
 
 Arguments parse_argv(){
-    Arguments arguments = { FALSE, FALSE, FALSE, NULL, NULL, NULL }; 
-    char **tokens = malloc(BUFFER_SIZE * sizeof(char*));   
-    if(!tokens){
+    Arguments arguments; 
+    arguments.argv = malloc(BUFFER_SIZE * sizeof(char*));   
+    if(!arguments.argv){
 
     }
 
     char *token = NULL;
     int index = 0;
+
     token = strtok(buffer, TOKEN_DELIMITER);
-    tokens[index++] = token;
+    arguments.argv[index++] = token;
 
     while(token != NULL){
         token = strtok(NULL, TOKEN_DELIMITER);
-        tokens[index++] = token;
+        arguments.argv[index++] = token;
     }
     
-    tokens[index] = NULL;
+    arguments.argv[index] = NULL;
+    for(int i = 1; i < index -1; i++){
+        if(arguments.argv[i][0] == '<'){
+            arguments.inredirect = TRUE;
+            arguments.infile = arguments.argv[i] + 1;
+            arguments.argv[i] = NULL;
+        }
+        else if(arguments.argv[i][0] == '>'){
+            arguments.outredirect = TRUE;
+            arguments.outfile = arguments.argv[i] + 1;
+            arguments.argv[i] = NULL;
+        }
+        else if(arguments.argv[i][0] == '&'){
+            arguments.background = TRUE;
+            arguments.argv[i] = NULL;
+        }
+    }
+
     return arguments;
 }
 
 void print_prompt(){
+    fflush(stdout);
     printf("$ ");
     fflush(stdout);
 }
 
 int main(int argc, char **argv)
 {
+    setbuf(stdout, NULL);
 	pthread_t pt, pt2;
 	pthread_attr_t attr;
 	void *statp;
