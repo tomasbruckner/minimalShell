@@ -12,5 +12,5 @@ CFLAGS=-O -Wall -pedantic -std=c99
 
 shell:
 	$(CC) $(CFLAGS) shell.c -o shell -lpthread
-clean: 
+clean:
 	rm -f shell

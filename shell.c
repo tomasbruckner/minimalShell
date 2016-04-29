@@ -25,7 +25,7 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
 char buffer[BUFFER_SIZE];
-int reading = 1, 
+int reading = 1,
     notend = 1;
 pid_t pid = -1; // actual foreground process
 
@@ -37,10 +37,10 @@ int main(int argc, char **argv){
 	void *statp;
 
 	pthread_attr_init(&attr);
-	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE); 
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 
     // starts threads
-	if (pthread_create(&pt, &attr, read_thread, NULL) != 0 
+	if (pthread_create(&pt, &attr, read_thread, NULL) != 0
         || pthread_create(&pt2, &attr, process_thread, NULL) != 0) {
 		printf("pthread_create() err=%d\n", errno);
 		exit(1);
@@ -80,7 +80,7 @@ void *read_thread(void *arg){
             pthread_mutex_unlock(&mutex);
             continue;
         }
-        
+
         // stops reading, starts processing
         reading = 0;
         pthread_cond_signal(&cond);
@@ -111,7 +111,7 @@ void *process_thread(void *arg){
 
         Arguments arguments;
         arguments = parse_argv();
-        
+
         // invalid input
         if(arguments.argv[0] == NULL){
             printf("Nevalidni vstup!\n");
@@ -121,7 +121,7 @@ void *process_thread(void *arg){
             pthread_mutex_unlock(&mutex);
             continue;
         }
-    
+
         // exit
         if(strcmp(arguments.argv[0], "exit") == 0){
             notend = 0;
@@ -134,7 +134,7 @@ void *process_thread(void *arg){
                 sig_a.sa_handler = SIG_DFL;
                 sigaction(SIGINT, &sig_a, NULL);
                 sigaction(SIGCHLD, &sig_a, NULL);
-                
+
                 // input redirect
                 if(arguments.inredirect){
                     int fd = open(arguments.infile, O_RDONLY);
@@ -152,11 +152,11 @@ void *process_thread(void *arg){
                     if(fd == -1){
                         fprintf(stderr, "Chyba vyvoreni souboru %s.\n", arguments.outfile);
                         exit(1);
-                    } 
+                    }
                     dup2(fd, STDOUT_FILENO);
                     close(fd);
                 }
-             
+
                 // background process blocks interrupt
                 if(arguments.background){
                     sigset_t mask;
@@ -164,7 +164,7 @@ void *process_thread(void *arg){
                     sigaddset(&mask, SIGINT);
                     sigprocmask(SIG_SETMASK, &mask, NULL);
                 }
-        
+
                 if(execvp(arguments.argv[0], arguments.argv) == -1){
                     fprintf(stderr, "Prikaz nenalezen!\n");
                 }
@@ -174,14 +174,14 @@ void *process_thread(void *arg){
             else if(pid > 0){
                 // don't save background process pid
                 if(arguments.background){
-                    pid = -1; 
+                    pid = -1;
                 }
                 // foreground
                 else{
                     // waits for SIGCHLD
                     sigset_t mask;
                     sigemptyset(&mask);
-                    
+
                     while(pid > 0){
                         sigsuspend(&mask);
                     }
@@ -195,7 +195,7 @@ void *process_thread(void *arg){
 
         free(arguments.argv);
         // stops processing, starts reading
-        reading = 1;       
+        reading = 1;
         pthread_cond_signal(&cond);
         pthread_mutex_unlock(&mutex);
     }
@@ -227,18 +227,18 @@ void sig_handler(int signo){
 }
 
 Arguments parse_argv(){
-    Arguments arguments; 
+    Arguments arguments;
     arguments.argv = NULL;
     arguments.inredirect = FALSE;
     arguments.outredirect = FALSE;
     arguments.background = FALSE;
 
-    arguments.argv = malloc(BUFFER_SIZE * sizeof(char*));   
+    arguments.argv = malloc(BUFFER_SIZE * sizeof(char*));
     if(!arguments.argv){
         fprintf(stderr, "Selhal malloc!\n");
         return arguments;
     }
-    
+
     char *token = NULL;
     int index = 0;
     token = strtok(buffer, TOKEN_DELIMITER);
@@ -250,7 +250,7 @@ Arguments parse_argv(){
         token = strtok(NULL, TOKEN_DELIMITER);
         arguments.argv[index++] = token;
     }
-    
+
     // last argument must be NULL
     arguments.argv[index] = NULL;
 
@@ -286,4 +286,3 @@ void free_resources(){
 }
 
 // vim: expandtab:shiftwidth=4:tabstop=4:softtabstop=0:textwidth=120
-

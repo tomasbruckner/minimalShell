@@ -52,4 +52,3 @@ Arguments parse_argv();
 void free_resources();
 
 // vim: expandtab:shiftwidth=4:tabstop=4:softtabstop=0:textwidth=120
-
