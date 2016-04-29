@@ -17,13 +17,14 @@ void *read_thread(void *arg);
 
 void *process_thread(void *arg);
 
+void sig_handler(int signo);
+
 void print_prompt();
 
 Arguments parse_argv();
 
 void free_resources();
 
-int check_char_index(char ** argv, const char * c);
 
 // vim: expandtab:shiftwidth=4:tabstop=4:softtabstop=0:textwidth=120
 
