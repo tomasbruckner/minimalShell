@@ -25,11 +25,12 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
 char buffer[BUFFER_SIZE];
-int reading = 0, 
+int reading = 1, 
     notend = 1;
 pid_t pid = -1; // actual foreground process
 
 int main(int argc, char **argv){
+    // stops buffering
     setbuf(stdout, NULL);
 	pthread_t pt, pt2;
 	pthread_attr_t attr;
@@ -38,11 +39,14 @@ int main(int argc, char **argv){
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE); 
 
+    // starts threads
 	if (pthread_create(&pt, &attr, read_thread, NULL) != 0 
         || pthread_create(&pt2, &attr, process_thread, NULL) != 0) {
 		printf("pthread_create() err=%d\n", errno);
 		exit(1);
 	}
+
+    // waits for shell exit
 	if (pthread_join(pt, &statp) == -1 || pthread_join(pt, &statp) == -1) {
 		printf("pthread_join() err=%d\n", errno);
 		exit(1);
@@ -63,17 +67,21 @@ void *read_thread(void *arg){
 
     while(notend){
         pthread_mutex_lock(&mutex);
+
+        // clears buffer
         memset(buffer, '\0', BUFFER_SIZE);
         print_prompt();
         n = read(STDIN_FILENO, buffer, BUFFER_SIZE);
 
+        // handles only <= 512 bytes of input
         if(n >= BUFFER_SIZE){
             while( (n = getchar()) != EOF ) ;
-            printf("Input is too long\n");
+            printf("Prilis velky vstup!\n");
             pthread_mutex_unlock(&mutex);
             continue;
         }
         
+        // stops reading, starts processing
         reading = 0;
         pthread_cond_signal(&cond);
         while(!reading){
@@ -82,7 +90,6 @@ void *read_thread(void *arg){
 
         pthread_mutex_unlock(&mutex);
     }
-        pthread_mutex_lock(&mutex);
 
 	return (void *)0;
 }
@@ -104,8 +111,10 @@ void *process_thread(void *arg){
 
         Arguments arguments;
         arguments = parse_argv();
+        
+        // invalid input
         if(arguments.argv[0] == NULL){
-            printf("Prazdny vstup!\n");
+            printf("Nevalidni vstup!\n");
             reading = 1;
             free(arguments.argv);
             pthread_cond_signal(&cond);
@@ -113,16 +122,20 @@ void *process_thread(void *arg){
             continue;
         }
     
+        // exit
         if(strcmp(arguments.argv[0], "exit") == 0){
             notend = 0;
         }
+        // executing command
         else{
             pid = fork();
             if(pid == 0){
+                // default handling in child
                 sig_a.sa_handler = SIG_DFL;
                 sigaction(SIGINT, &sig_a, NULL);
                 sigaction(SIGCHLD, &sig_a, NULL);
                 
+                // input redirect
                 if(arguments.inredirect){
                     int fd = open(arguments.infile, O_RDONLY);
                     if(fd == -1){
@@ -133,6 +146,7 @@ void *process_thread(void *arg){
                     close(fd);
                 }
 
+                // output redirect
                 if(arguments.outredirect){
                     int fd = creat(arguments.outfile, 0644);
                     if(fd == -1){
@@ -142,21 +156,29 @@ void *process_thread(void *arg){
                     dup2(fd, STDOUT_FILENO);
                     close(fd);
                 }
-                
+             
+                // background process blocks interrupt
                 if(arguments.background){
-
+                    sigset_t mask;
+                    sigemptyset(&mask);
+                    sigaddset(&mask, SIGINT);
+                    sigprocmask(SIG_SETMASK, &mask, NULL);
                 }
         
                 if(execvp(arguments.argv[0], arguments.argv) == -1){
                     fprintf(stderr, "Prikaz nenalezen!\n");
                 }
+
                 _exit(1); // fail
             }
             else if(pid > 0){
+                // don't save background process pid
                 if(arguments.background){
                     pid = -1; 
                 }
+                // foreground
                 else{
+                    // waits for SIGCHLD
                     sigset_t mask;
                     sigemptyset(&mask);
                     
@@ -165,12 +187,14 @@ void *process_thread(void *arg){
                     }
                 }
             }
+            // fork error
             else{
                 fprintf(stderr, "Fork se nepovedl\n");
             }
         }
 
         free(arguments.argv);
+        // stops processing, starts reading
         reading = 1;       
         pthread_cond_signal(&cond);
         pthread_mutex_unlock(&mutex);
@@ -219,6 +243,7 @@ Arguments parse_argv(){
     int index = 0;
     token = strtok(buffer, TOKEN_DELIMITER);
 
+    // NULL is checked outside function
     arguments.argv[index++] = token;
 
     while(token != NULL){
@@ -226,7 +251,10 @@ Arguments parse_argv(){
         arguments.argv[index++] = token;
     }
     
+    // last argument must be NULL
     arguments.argv[index] = NULL;
+
+    // check for redirects or background proccesing
     for(int i = 1; i < index -1; i++){
         if(arguments.argv[i][0] == '<'){
             arguments.inredirect = TRUE;
