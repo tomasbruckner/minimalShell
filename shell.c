@@ -1,8 +1,6 @@
 /**
  *	File: shell.c
- *	Course: POS - Advanced Operating Systems
- *	Project: 2. Shell
- *	Name: Tomas Bruckner, xbruck02@stud.fit.vutbr.cz
+ *	Name: Tomas Bruckner, tomasbrucknermail@gmail.com
  *	Date: 2016-04-16
  *	Description:
  **/
@@ -76,7 +74,7 @@ void *read_thread(void *arg){
         // handles only <= 512 bytes of input
         if(n >= BUFFER_SIZE){
             while( (n = getchar()) != EOF ) ;
-            printf("Prilis velky vstup!\n");
+            printf("Input length is too long! Maximum input is 512 bytes.\n");
             pthread_mutex_unlock(&mutex);
             continue;
         }
@@ -114,7 +112,7 @@ void *process_thread(void *arg){
 
         // invalid input
         if(arguments.argv[0] == NULL){
-            printf("Nevalidni vstup!\n");
+            printf("Invalid input!\n");
             reading = 1;
             free(arguments.argv);
             pthread_cond_signal(&cond);
@@ -139,7 +137,7 @@ void *process_thread(void *arg){
                 if(arguments.inredirect){
                     int fd = open(arguments.infile, O_RDONLY);
                     if(fd == -1){
-                        fprintf(stderr, "Chyba otevreni vstupniho souboru %s.\n", arguments.infile);
+                        fprintf(stderr, "Error opening file %s.\n", arguments.infile);
                         exit(1);
                     }
                     dup2(fd, STDIN_FILENO);
@@ -150,7 +148,7 @@ void *process_thread(void *arg){
                 if(arguments.outredirect){
                     int fd = creat(arguments.outfile, 0644);
                     if(fd == -1){
-                        fprintf(stderr, "Chyba vyvoreni souboru %s.\n", arguments.outfile);
+                        fprintf(stderr, "Error creating file %s.\n", arguments.outfile);
                         exit(1);
                     }
                     dup2(fd, STDOUT_FILENO);
@@ -166,7 +164,7 @@ void *process_thread(void *arg){
                 }
 
                 if(execvp(arguments.argv[0], arguments.argv) == -1){
-                    fprintf(stderr, "Prikaz nenalezen!\n");
+                    fprintf(stderr, "Command not found!\n");
                 }
 
                 _exit(1); // fail
@@ -189,7 +187,7 @@ void *process_thread(void *arg){
             }
             // fork error
             else{
-                fprintf(stderr, "Fork se nepovedl\n");
+                fprintf(stderr, "Fork failed\n");
             }
         }
 
@@ -235,7 +233,7 @@ Arguments parse_argv(){
 
     arguments.argv = malloc(BUFFER_SIZE * sizeof(char*));
     if(!arguments.argv){
-        fprintf(stderr, "Selhal malloc!\n");
+        fprintf(stderr, "Malloc failed!\n");
         return arguments;
     }
 

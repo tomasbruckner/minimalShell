@@ -1,8 +1,6 @@
 /**
  *	File: shell.h
- *	Course: POS - Advanced Operating Systems
- *	Project: 2. Shell
- *	Name: Tomas Bruckner, xbruck02@stud.fit.vutbr.cz
+ *	Name: Tomas Bruckner, tomasbrucknermail@gmail.com
  *	Date: 2016-04-16
  *	Description:
  **/
